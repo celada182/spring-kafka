@@ -1,5 +1,8 @@
 package com.celada.spring.kafka.config;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -7,10 +10,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.core.ConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +43,8 @@ public class KafkaConfiguration {
                 factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setBatchListener(true);
+        // Threads
+        factory.setConcurrency(3);
         return factory;
     }
 
@@ -59,8 +61,15 @@ public class KafkaConfiguration {
     }
 
     @Bean
-    public KafkaTemplate<String, String> kafkaTemplate(Map<String, Object> producerProps) {
+    public KafkaTemplate<String, String> kafkaTemplate(Map<String, Object> producerProps, MeterRegistry registry) {
         DefaultKafkaProducerFactory<String, String> producerFactory = new DefaultKafkaProducerFactory<>(producerProps);
+        // Register metrics
+        producerFactory.addListener(new MicrometerProducerListener<>(registry));
         return new KafkaTemplate<>(producerFactory);
+    }
+
+    @Bean
+    public MeterRegistry meterRegistry() {
+        return new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     }
 }
